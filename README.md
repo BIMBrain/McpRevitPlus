@@ -12,7 +12,7 @@
 
 ## ��� 專案簡介
 
-**MCP Revit+** 是一個AI輔助建模的工具，將BIM ISV透過LLM的解析使用WEBUI簡易的Chatbot模式，將複雜的判斷與工具調用融合得像人與人對話一樣簡單。每一個BIMer透過自然語言驅動AI來與軟體對話，讓建築師、工程師和開發者只需要在一個平台上，就能做到從部署到建模的完整工作流。
+**MCP Revit+** 是一個AI輔助建模的工具，BIM ISV透過LLM的解析，使用WEBUI簡易的Chatbot模式，將複雜的判斷與工具調用融合得如同人與人之間的對話一樣簡單。每一個BIMer透過自然語言驅動AI來與軟體對話，讓建築師、工程師和開發者只需要在一個平台上，就能做到從部署到建模的完整工作流。
 
 ### ��� 核心特色
 
@@ -438,7 +438,7 @@ Claude：我來幫您建立一面 10 米長的牆。首先讓我查看當前視�
 ### MCP 客戶端支援
 - **Claude Desktop** - Anthropic 官方桌面客戶端
 - **Cline** - VS Code 擴展的 AI 助手
-- **Suna** - 多模態 AI 客戶端
+- **Suna** - 多模態 AI 本地佈署客戶端
 - **其他 MCP 相容客戶端** - 支援標準 MCP 協議的客戶端
 
 ## ��� 貢獻指南
@@ -461,7 +461,7 @@ Claude：我來幫您建立一面 10 米長的牆。首先讓我查看當前視�
 - [pyRevit](https://pyrevitlabs.io/) - Revit Python 開發環境
 - [revit-mcp](https://github.com/revit-mcp/revit-mcp) - MCP Server 實現
 - [RevitMCP](https://github.com/oakplank/RevitMCP) - Python MCP 擴展
-- [LM Studio](https://lmstudio.ai/) - 本地 AI 模型服務
+- [LM Studio](https://lmstudio.ai/) - 本地AI LLM模型服務
 - [React](https://reactjs.org/) - 用戶界面框架
 - [Vite](https://vitejs.dev/) - 建構工具
 - [Tailwind CSS](https://tailwindcss.com/) - CSS 框架
