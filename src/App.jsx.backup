@@ -1,0 +1,412 @@
+import { useState, useRef, useEffect } from 'react'
+import { Button } from '@/components/ui/button.jsx'
+import { Input } from '@/components/ui/input.jsx'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card.jsx'
+import { Badge } from '@/components/ui/badge.jsx'
+import { ScrollArea } from '@/components/ui/scroll-area.jsx'
+import { Separator } from '@/components/ui/separator.jsx'
+import { Send, Bot, User, Settings, Zap, Building, MessageSquare, Loader2 } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import './App.css'
+import GpuMonitor from './components/GpuMonitor.jsx'
+import { motion, AnimatePresence } from 'framer-motion'
+import './App.css'
+
+function App() {
+  const [messages, setMessages] = useState([
+    {
+      id: 1,
+      type: 'system',
+      content: '歡迎使用 MCP+LLM+Revit 對話建模介面！您可以使用自然語言指令來控制 Revit 進行建模操作。',
+      timestamp: new Date().toLocaleTimeString()
+    }
+  ])
+  const [inputValue, setInputValue] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [systemStatus, setSystemStatus] = useState({
+    lm_studio: { status: 'running' },
+    revit: { status: 'waiting' },
+    mcp_coordinator: { status: 'ready' }
+  })
+  const messagesEndRef = useRef(null)
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }
+
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages])
+
+  // 獲取系統狀態
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/mcp/status')
+        const data = await response.json()
+        if (data.success) {
+          setSystemStatus(data.status)
+        }
+      } catch (error) {
+        console.error('獲取系統狀態失敗:', error)
+      }
+    }
+
+    fetchStatus()
+    const interval = setInterval(fetchStatus, 5000) // 每5秒更新一次狀態
+    return () => clearInterval(interval)
+  }, [])
+
+  const handleSendMessage = async () => {
+    if (!inputValue.trim() || isLoading) return
+
+    const userMessage = {
+      id: Date.now(),
+      type: 'user',
+      content: inputValue,
+      timestamp: new Date().toLocaleTimeString()
+    }
+
+    setMessages(prev => [...prev, userMessage])
+    setInputValue('')
+    setIsLoading(true)
+
+    try {
+      const response = await fetch('http://localhost:5000/api/mcp/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message: userMessage.content })
+      })
+
+      const data = await response.json()
+      
+      if (data.success) {
+        const botMessage = {
+          id: Date.now() + 1,
+          type: 'bot',
+          content: data.message.content,
+          timestamp: new Date().toLocaleTimeString(),
+          functionCall: data.function_call,
+          revitResult: data.revit_result.message
+        }
+        setMessages(prev => [...prev, botMessage])
+      } else {
+        const errorMessage = {
+          id: Date.now() + 1,
+          type: 'bot',
+          content: `處理請求時發生錯誤: ${data.error || '未知錯誤'}`,
+          timestamp: new Date().toLocaleTimeString()
+        }
+        setMessages(prev => [...prev, errorMessage])
+      }
+    } catch (error) {
+      console.error('發送訊息失敗:', error)
+      const errorMessage = {
+        id: Date.now() + 1,
+        type: 'bot',
+        content: '無法連接到後端服務，請檢查服務是否正常運行。',
+        timestamp: new Date().toLocaleTimeString()
+      }
+      setMessages(prev => [...prev, errorMessage])
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSendMessage()
+    }
+  }
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'connected':
+      case 'running': return 'bg-green-500'
+      case 'connecting':
+      case 'ready': return 'bg-blue-500'
+      case 'waiting': return 'bg-yellow-500'
+      default: return 'bg-red-500'
+    }
+  }
+
+  const getStatusText = (status) => {
+    switch (status) {
+      case 'connected': return '已連接'
+      case 'running': return '運行中'
+      case 'connecting': return '連接中'
+      case 'ready': return '就緒'
+      case 'waiting': return '待連接'
+      default: return '未連接'
+    }
+  }
+
+  const MessageBubble = ({ message }) => (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'} mb-4`}
+    >
+      <div className={`flex items-start space-x-2 max-w-[80%] ${message.type === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
+        <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+          message.type === 'user' ? 'bg-blue-500' : message.type === 'system' ? 'bg-gray-500' : 'bg-green-500'
+        }`}>
+          {message.type === 'user' ? (
+            <User className="w-4 h-4 text-white" />
+          ) : message.type === 'system' ? (
+            <Settings className="w-4 h-4 text-white" />
+          ) : (
+            <Bot className="w-4 h-4 text-white" />
+          )}
+        </div>
+      {/* GPU 監控組件 */}
+        <div className={`rounded-lg p-3 ${
+          message.type === 'user' 
+            ? 'bg-blue-500 text-white' 
+            : message.type === 'system'
+            ? 'bg-gray-100 text-gray-800 border'
+            : 'bg-white text-gray-800 border shadow-sm'
+        }`}>
+          <p className="text-sm leading-relaxed">{message.content}</p>
+          {message.functionCall && (
+            <div className="mt-2 p-2 bg-gray-50 rounded text-xs font-mono">
+              <div className="text-gray-600 mb-1">Function Call:</div>
+              <div className="text-blue-600">{message.functionCall}</div>
+            </div>
+      {/* GPU 監控組件 */}
+          )}
+          {message.revitResult && (
+            <div className="mt-2 p-2 bg-green-50 rounded text-xs">
+              <div className="text-gray-600 mb-1">Revit 執行結果:</div>
+              <div className="text-green-600">{message.revitResult}</div>
+            </div>
+      {/* GPU 監控組件 */}
+          )}
+          <div className="text-xs opacity-70 mt-1">{message.timestamp}</div>
+        </div>
+      {/* GPU 監控組件 */}
+      </div>
+      {/* GPU 監控組件 */}
+    </motion.div>
+  )
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-6xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
+                <Building className="w-6 h-6 text-white" />
+              </div>
+      {/* GPU 監控組件 */}
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">MCP+LLM+Revit</h1>
+                <p className="text-sm text-gray-600">對話建模介面</p>
+              </div>
+      {/* GPU 監控組件 */}
+            </div>
+      {/* GPU 監控組件 */}
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <div className={`w-2 h-2 rounded-full ${getStatusColor(systemStatus.mcp_coordinator?.status)}`}></div>
+                <span className="text-sm text-gray-600">系統狀態</span>
+              </div>
+      {/* GPU 監控組件 */}
+              <Badge variant="outline" className="flex items-center space-x-1">
+                <Zap className="w-3 h-3" />
+                <span>AI 驅動</span>
+              </Badge>
+            </div>
+      {/* GPU 監控組件 */}
+          </div>
+      {/* GPU 監控組件 */}
+        </div>
+      {/* GPU 監控組件 */}
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-6xl mx-auto px-4 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Chat Area */}
+          <div className="lg:col-span-3">
+            <Card className="h-[600px] flex flex-col">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center space-x-2">
+                  <MessageSquare className="w-5 h-5" />
+                  <span>對話區域</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex-1 flex flex-col p-0">
+                <ScrollArea className="flex-1 px-4">
+                  <div className="space-y-4 py-4">
+                    {messages.map((message) => (
+                      <MessageBubble key={message.id} message={message} />
+                    ))}
+                    <AnimatePresence>
+                      {isLoading && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -20 }}
+                          className="flex justify-start mb-4"
+                        >
+                          <div className="flex items-start space-x-2">
+                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
+                              <Bot className="w-4 h-4 text-white" />
+                            </div>
+      {/* GPU 監控組件 */}
+                            <div className="bg-white border rounded-lg p-3 shadow-sm">
+                              <div className="flex items-center space-x-2">
+                                <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                                <span className="text-sm text-gray-600">正在處理您的請求...</span>
+                              </div>
+      {/* GPU 監控組件 */}
+                            </div>
+      {/* GPU 監控組件 */}
+                          </div>
+      {/* GPU 監控組件 */}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                    <div ref={messagesEndRef} />
+                  </div>
+      {/* GPU 監控組件 */}
+                </ScrollArea>
+                <Separator />
+                <div className="p-4">
+                  <div className="flex space-x-2">
+                    <Input
+                      value={inputValue}
+                      onChange={(e) => setInputValue(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                      placeholder="輸入您的建模指令，例如：建立一個長10米、寬0.2米、高3米的混凝土牆"
+                      className="flex-1"
+                      disabled={isLoading}
+                    />
+                    <Button 
+                      onClick={handleSendMessage} 
+                      disabled={!inputValue.trim() || isLoading}
+                      className="px-3"
+                    >
+                      <Send className="w-4 h-4" />
+                    </Button>
+                  </div>
+      {/* GPU 監控組件 */}
+                  <p className="text-xs text-gray-500 mt-2">
+                    按 Enter 發送，Shift + Enter 換行
+                  </p>
+                </div>
+      {/* GPU 監控組件 */}
+              </CardContent>
+            </Card>
+          </div>
+      {/* GPU 監控組件 */}
+
+          {/* Sidebar */}
+          <div className="lg:col-span-1 space-y-6">
+            {/* System Status */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">系統狀態</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">LM Studio</span>
+                  <Badge variant="outline" className="text-xs">
+                    <div className={`w-2 h-2 ${getStatusColor(systemStatus.lm_studio?.status)} rounded-full mr-1`}></div>
+                    {getStatusText(systemStatus.lm_studio?.status)}
+                  </Badge>
+                </div>
+      {/* GPU 監控組件 */}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Revit</span>
+                  <Badge variant="outline" className="text-xs">
+                    <div className={`w-2 h-2 ${getStatusColor(systemStatus.revit?.status)} rounded-full mr-1`}></div>
+                    {getStatusText(systemStatus.revit?.status)}
+                  </Badge>
+                </div>
+      {/* GPU 監控組件 */}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">MCP 協調層</span>
+                  <Badge variant="outline" className="text-xs">
+                    <div className={`w-2 h-2 ${getStatusColor(systemStatus.mcp_coordinator?.status)} rounded-full mr-1`}></div>
+                    {getStatusText(systemStatus.mcp_coordinator?.status)}
+                  </Badge>
+                </div>
+      {/* GPU 監控組件 */}
+              </CardContent>
+            </Card>
+
+            {/* Quick Commands */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">快速指令</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full justify-start text-xs"
+                  onClick={() => setInputValue('建立一個標準的房間')}
+                >
+                  建立標準房間
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full justify-start text-xs"
+                  onClick={() => setInputValue('添加一扇門到選中的牆')}
+                >
+                  添加門
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full justify-start text-xs"
+                  onClick={() => setInputValue('查詢當前模型的元素數量')}
+                >
+                  查詢模型資訊
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full justify-start text-xs"
+                  onClick={() => setInputValue('建立一個樓梯')}
+                >
+                  建立樓梯
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Help */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">使用說明</CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs text-gray-600 space-y-2">
+                <p>• 使用自然語言描述您的建模需求</p>
+                <p>• 系統會自動將指令轉換為 Revit 操作</p>
+                <p>• 支援建立牆體、門窗、樓梯等元素</p>
+                <p>• 可查詢模型資訊和元素屬性</p>
+              </CardContent>
+            </Card>
+          </div>
+      {/* GPU 監控組件 */}
+        </div>
+      {/* GPU 監控組件 */}
+      </main>
+    </div>
+      {/* GPU 監控組件 */}
+  )
+}
+
+      {/* GPU 監控組件 */}
+      <GpuMonitor />
+export default App
+
